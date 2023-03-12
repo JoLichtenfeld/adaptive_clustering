@@ -227,7 +227,7 @@ int main(int argc, char **argv) {
   
   /*** Subscribers ***/
   ros::NodeHandle nh;
-  ros::Subscriber point_cloud_sub = nh.subscribe<sensor_msgs::PointCloud2>("velodyne_points", 1, pointCloudCallback);
+  ros::Subscriber point_cloud_sub = nh.subscribe<sensor_msgs::PointCloud2>("/autonomy_module_lidar/points", 1, pointCloudCallback);
 
   /*** Publishers ***/
   ros::NodeHandle private_nh("~");
