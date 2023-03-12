@@ -200,7 +200,8 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
       marker.color.r = 0.0;
       marker.color.g = 1.0;
       marker.color.b = 0.5;
-      marker.lifetime = ros::Duration(0.1);
+      marker.lifetime = ros::Duration(0);
+      marker.action = visualization_msgs::Marker::ADD;
       marker_array.markers.push_back(marker);
     }
   }
@@ -216,6 +217,13 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
   }
   
   if(marker_array.markers.size()) {
+    visualization_msgs::MarkerArray del_array;
+    visualization_msgs::Marker del_marker;
+    del_marker.action = visualization_msgs::Marker::DELETEALL;
+    del_marker.ns = "adaptive_clustering";
+    del_array.markers.push_back(del_marker);
+    marker_array_pub_.publish(del_array);
+
     marker_array_pub_.publish(marker_array);
   }
   
