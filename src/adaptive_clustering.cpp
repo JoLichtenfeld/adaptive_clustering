@@ -84,6 +84,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in)
                  pcl_pc_in->points[(*pc_indices)[i]].y * pcl_pc_in->points[(*pc_indices)[i]].y +
                  pcl_pc_in->points[(*pc_indices)[i]].z *
                      pcl_pc_in->points[(*pc_indices)[i]].z;  // TODO move this to outer loop?
+
       if (d2 > range * range && d2 <= (range + regions_[j]) * (range + regions_[j]))
       {
         indices_array[j].push_back((*pc_indices)[i]);
@@ -134,7 +135,6 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in)
   }
 
   /*** Output ***/
-  std::cout << "Clusters: " << clusters.size() << "\n";
   if (cloud_filtered_pub_.getNumSubscribers() > 0)
   {
     pcl::PointCloud<pcl::PointXYZI>::Ptr pcl_pc_out(new pcl::PointCloud<pcl::PointXYZI>);
