@@ -25,15 +25,19 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/segmentation/extract_clusters.h>
+#include <pcl/common/transforms.h>
 #include <pcl/common/common.h>
 #include <pcl/common/centroid.h>
+
+// Bounding Boxes
+#include <jsk_recognition_msgs/BoundingBoxArray.h>
 
 //#define LOG
 
 ros::Publisher cluster_array_pub_;
 ros::Publisher cloud_filtered_pub_;
 ros::Publisher pose_array_pub_;
-ros::Publisher marker_array_pub_;
+ros::Publisher bboxes_pub_;
 
 bool print_fps_;
 float z_axis_min_;
@@ -78,7 +82,8 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in)
     {
       float d2 = pcl_pc_in->points[(*pc_indices)[i]].x * pcl_pc_in->points[(*pc_indices)[i]].x +
                  pcl_pc_in->points[(*pc_indices)[i]].y * pcl_pc_in->points[(*pc_indices)[i]].y +
-                 pcl_pc_in->points[(*pc_indices)[i]].z * pcl_pc_in->points[(*pc_indices)[i]].z;
+                 pcl_pc_in->points[(*pc_indices)[i]].z *
+                     pcl_pc_in->points[(*pc_indices)[i]].z;  // TODO move this to outer loop?
       if (d2 > range * range && d2 <= (range + regions_[j]) * (range + regions_[j]))
       {
         indices_array[j].push_back((*pc_indices)[i]);
@@ -129,6 +134,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in)
   }
 
   /*** Output ***/
+  std::cout << "Clusters: " << clusters.size() << "\n";
   if (cloud_filtered_pub_.getNumSubscribers() > 0)
   {
     pcl::PointCloud<pcl::PointXYZI>::Ptr pcl_pc_out(new pcl::PointCloud<pcl::PointXYZI>);
@@ -140,7 +146,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in)
 
   adaptive_clustering::ClusterArray cluster_array;
   geometry_msgs::PoseArray pose_array;
-  visualization_msgs::MarkerArray marker_array;
+  jsk_recognition_msgs::BoundingBoxArray bboxes;
 
   for (int i = 0; i < clusters.size(); i++)
   {
@@ -171,104 +177,65 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in)
 #endif
     }
 
-    if (marker_array_pub_.getNumSubscribers() > 0)
+    if (bboxes_pub_.getNumSubscribers() > 0)
     {
-      Eigen::Vector4f min, max;
-      pcl::getMinMax3D(*clusters[i], min, max);
+      // Minimal Bounding Box
+      pcl::PointXYZI origMinPoint, origMaxPoint;
+      pcl::getMinMax3D(*clusters[i], origMinPoint, origMaxPoint);
 
-      visualization_msgs::Marker marker;
-      marker.header = ros_pc2_in->header;
-      marker.ns = "adaptive_clustering";
-      marker.id = i;
-      marker.type = visualization_msgs::Marker::LINE_LIST;
+      // Set z components zero
+      pcl::PointCloud<pcl::PointXYZI>::Ptr cluster_cloud_transformed(new pcl::PointCloud<pcl::PointXYZI>);
+      pcl::copyPointCloud(*clusters[i], *cluster_cloud_transformed);
+      for (size_t idx = 0u; idx < cluster_cloud_transformed->size(); ++idx)
+        cluster_cloud_transformed->points[idx].z = 0;
 
-      geometry_msgs::Point p[24];
-      p[0].x = max[0];
-      p[0].y = max[1];
-      p[0].z = max[2];
-      p[1].x = min[0];
-      p[1].y = max[1];
-      p[1].z = max[2];
-      p[2].x = max[0];
-      p[2].y = max[1];
-      p[2].z = max[2];
-      p[3].x = max[0];
-      p[3].y = min[1];
-      p[3].z = max[2];
-      p[4].x = max[0];
-      p[4].y = max[1];
-      p[4].z = max[2];
-      p[5].x = max[0];
-      p[5].y = max[1];
-      p[5].z = min[2];
-      p[6].x = min[0];
-      p[6].y = min[1];
-      p[6].z = min[2];
-      p[7].x = max[0];
-      p[7].y = min[1];
-      p[7].z = min[2];
-      p[8].x = min[0];
-      p[8].y = min[1];
-      p[8].z = min[2];
-      p[9].x = min[0];
-      p[9].y = max[1];
-      p[9].z = min[2];
-      p[10].x = min[0];
-      p[10].y = min[1];
-      p[10].z = min[2];
-      p[11].x = min[0];
-      p[11].y = min[1];
-      p[11].z = max[2];
-      p[12].x = min[0];
-      p[12].y = max[1];
-      p[12].z = max[2];
-      p[13].x = min[0];
-      p[13].y = max[1];
-      p[13].z = min[2];
-      p[14].x = min[0];
-      p[14].y = max[1];
-      p[14].z = max[2];
-      p[15].x = min[0];
-      p[15].y = min[1];
-      p[15].z = max[2];
-      p[16].x = max[0];
-      p[16].y = min[1];
-      p[16].z = max[2];
-      p[17].x = max[0];
-      p[17].y = min[1];
-      p[17].z = min[2];
-      p[18].x = max[0];
-      p[18].y = min[1];
-      p[18].z = max[2];
-      p[19].x = min[0];
-      p[19].y = min[1];
-      p[19].z = max[2];
-      p[20].x = max[0];
-      p[20].y = max[1];
-      p[20].z = min[2];
-      p[21].x = min[0];
-      p[21].y = max[1];
-      p[21].z = min[2];
-      p[22].x = max[0];
-      p[22].y = max[1];
-      p[22].z = min[2];
-      p[23].x = max[0];
-      p[23].y = min[1];
-      p[23].z = min[2];
-      for (int i = 0; i < 24; i++)
-      {
-        marker.points.push_back(p[i]);
-      }
+      // Compute principal directions
+      Eigen::Vector4f pcaCentroid;
+      pcl::compute3DCentroid(*cluster_cloud_transformed, pcaCentroid);
+      Eigen::Matrix3f covariance;
+      computeCovarianceMatrixNormalized(*cluster_cloud_transformed, pcaCentroid, covariance);
+      Eigen::Matrix2f smallcovariance = covariance.block(0, 0, 2, 2);
+      Eigen::SelfAdjointEigenSolver<Eigen::Matrix2f> eigen_solver(smallcovariance, Eigen::ComputeEigenvectors);
+      Eigen::Matrix2f eigenVectorsPCA = eigen_solver.eigenvectors();
 
-      marker.scale.x = 0.02;
-      marker.color.a = 1.0;
-      marker.color.r = 0.0;
-      marker.color.g = 1.0;
-      marker.color.b = 0.5;
-      marker.lifetime = ros::Duration(0);
-      marker.action = visualization_msgs::Marker::ADD;
-      marker_array.markers.push_back(marker);
+      // Transform the original cloud to the origin where the principal components correspond to the axes.
+      Eigen::Matrix4f projectionTransform(Eigen::Matrix4f::Identity());
+      projectionTransform.block<2, 2>(0, 0) = eigenVectorsPCA.transpose();
+      projectionTransform.block<2, 1>(0, 3) = -1.f * (projectionTransform.block<2, 2>(0, 0) * pcaCentroid.head<2>());
+      pcl::PointCloud<pcl::PointXYZI>::Ptr cloudPointsProjected(new pcl::PointCloud<pcl::PointXYZI>);
+      pcl::transformPointCloud(*cluster_cloud_transformed, *cloudPointsProjected, projectionTransform);
+
+      // Get the minimum and maximum points of the transformed cloud.
+      pcl::PointXYZI minPoint, maxPoint;
+      pcl::getMinMax3D(*cloudPointsProjected, minPoint, maxPoint);
+      const Eigen::Vector2f meanXY = 0.5f * (maxPoint.getVector3fMap().head<2>() + minPoint.getVector3fMap().head<2>());
+      const float meanZ = 0.5f * (origMaxPoint.z + origMinPoint.z);
+
+      Eigen::Vector2f bboxTransform = eigenVectorsPCA * meanXY + pcaCentroid.head<2>();
+      Eigen::Vector3f position(bboxTransform[0], bboxTransform[1], meanZ);
+      float orientation = std::atan2(eigenVectorsPCA.col(0)[1], eigenVectorsPCA.col(0)[0]);
+      Eigen::Vector3f dimension(maxPoint.x - minPoint.x, maxPoint.y - minPoint.y, origMaxPoint.z - origMinPoint.z);
+
+      jsk_recognition_msgs::BoundingBox bbox;
+      bbox.pose.position.x = bboxTransform[0];
+      bbox.pose.position.y = bboxTransform[1];
+      bbox.pose.position.z = meanZ;
+      bbox.pose.orientation.x = 0;
+      bbox.pose.orientation.y = 0;
+      bbox.pose.orientation.z = std::sin(orientation / 2.0);
+      bbox.pose.orientation.w = std::cos(orientation / 2.0);
+      bbox.dimensions.x = dimension[0];
+      bbox.dimensions.y = dimension[1];
+      bbox.dimensions.z = dimension[2];
+      bbox.header.frame_id = ros_pc2_in->header.frame_id;
+      bbox.header.stamp = ros_pc2_in->header.stamp;
+      bbox.value = clusters[i]->size();
+
+      bboxes.boxes.push_back(bbox);
     }
+
+    bboxes.header.frame_id = ros_pc2_in->header.frame_id;
+    bboxes_pub_.publish(bboxes);
   }
 
   if (cluster_array.clusters.size())
@@ -281,18 +248,6 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in)
   {
     pose_array.header = ros_pc2_in->header;
     pose_array_pub_.publish(pose_array);
-  }
-
-  if (marker_array.markers.size())
-  {
-    visualization_msgs::MarkerArray del_array;
-    visualization_msgs::Marker del_marker;
-    del_marker.action = visualization_msgs::Marker::DELETEALL;
-    del_marker.ns = "adaptive_clustering";
-    del_array.markers.push_back(del_marker);
-    marker_array_pub_.publish(del_array);
-
-    marker_array_pub_.publish(marker_array);
   }
 
   if (print_fps_)
@@ -318,12 +273,12 @@ int main(int argc, char** argv)
   cluster_array_pub_ = private_nh.advertise<adaptive_clustering::ClusterArray>("clusters", 100);
   cloud_filtered_pub_ = private_nh.advertise<sensor_msgs::PointCloud2>("cloud_filtered", 100);
   pose_array_pub_ = private_nh.advertise<geometry_msgs::PoseArray>("poses", 100);
-  marker_array_pub_ = private_nh.advertise<visualization_msgs::MarkerArray>("markers", 100);
+  bboxes_pub_ = private_nh.advertise<jsk_recognition_msgs::BoundingBoxArray>("bboxes", 100, true);
 
   /*** Parameters ***/
   std::string sensor_model;
 
-  private_nh.param<std::string>("sensor_model", sensor_model, "VLP-16");  // VLP-16, HDL-32E, HDL-64E
+  private_nh.param<std::string>("sensor_model", sensor_model, "HDL-64E");  // VLP-16, HDL-32E, HDL-64E
   private_nh.param<bool>("print_fps", print_fps_, false);
   private_nh.param<float>("z_axis_min", z_axis_min_, -0.8);
   private_nh.param<float>("z_axis_max", z_axis_max_, 2.0);
